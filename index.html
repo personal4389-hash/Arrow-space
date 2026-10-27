@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Arrow Escape</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1d2b44">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#eef1f5;--ink:#1d2b44;--dot:#c3ccd9;--hit:#e0457b;--gold:#f2b705;--btn:#1d2b44;--btnt:#eef1f5;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141c2b;--ink:#dfe6f2;--dot:#2f3c55;--hit:#ff6b9a;--btn:#dfe6f2;--btnt:#141c2b}}
+:root[data-theme="dark"]{--bg:#141c2b;--ink:#dfe6f2;--dot:#2f3c55;--hit:#ff6b9a;--btn:#dfe6f2;--btnt:#141c2b}
+:root[data-pal="ocean"]{--bg:#dff1f5;--ink:#0b4f6c;--dot:#a9d3dc;--btn:#0b4f6c;--btnt:#dff1f5}
+:root[data-pal="sunset"]{--bg:#fbe9df;--ink:#7a2e4d;--dot:#ecc5b8;--btn:#7a2e4d;--btnt:#fbe9df}
+:root[data-pal="forest"]{--bg:#e6efe1;--ink:#234d33;--dot:#b9d0b2;--btn:#234d33;--btnt:#e6efe1}
+:root[data-pal="night"]{--bg:#0e1220;--ink:#8fd3ff;--dot:#26304a;--hit:#ff6b9a;--btn:#8fd3ff;--btnt:#0e1220}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS",system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;touch-action:manipulation}
+h1{font-size:1.35rem;margin:14px 0 2px}
+#bar{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px;margin:4px 8px 10px;align-items:center}
+#hearts{color:var(--hit);letter-spacing:3px}
+svg{width:min(94vw,520px);height:auto;aspect-ratio:1;touch-action:manipulation}
+.s{transition:transform .55s cubic-bezier(.5,0,.9,.6),opacity .55s}
+.s .b{fill:none;stroke:var(--ink);stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
+.s .h{fill:var(--ink)}
+.s .t{fill:none;stroke:transparent;stroke-width:30;stroke-linecap:round;stroke-linejoin:round;pointer-events:stroke;cursor:pointer}
+.s.bad .b{stroke:var(--hit)}.s.bad .h{fill:var(--hit)}.s.bad{animation:sh .3s}
+.s.hint .b{stroke:var(--gold);stroke-width:7}.s.hint .h{fill:var(--gold)}
+@keyframes sh{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+#msg{min-height:2.6em;margin:10px 12px;text-align:center}
+.row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+button.b2{background:var(--btn);color:var(--btnt);border:0;border-radius:8px;padding:10px 16px;font:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid var(--gold)}
+@media (prefers-reduced-motion:reduce){.s{transition:none}.s.bad{animation:none}}
+</style></head><body>
+<h1>Arrow Escape</h1>
+<div id="bar"><span id="ttl">Level 1</span><span id="hearts"></span><span>Left <b id="left"></b></span><span>🪙 <b id="co">0</b></span><span>🏆 <b id="tr">0</b></span></div>
+<svg id="bd" viewBox="0 0 400 400" role="group" aria-label="Puzzle board"></svg>
+<div id="msg"></div>
+<div class="row"><button class="b2" id="hn">Hint (3)</button><button class="b2" id="rs">Restart</button><button class="b2" id="dl">Daily</button><button class="b2" id="un">Undo (3)</button><button class="b2" id="th">Theme</button><button class="b2" id="sd">🔊</button></div>
+<script>
+const D=[[0,-1],[1,0],[0,1],[-1,0]];
+let lv=1,n,U,sn,occ,lives,hints,busy,daily=false,undos=3,hist=[];
+const sv={lv:0,coins:0,unl:["classic"],pal:"classic",snd:true,tro:[]};
+try{Object.assign(sv,JSON.parse(localStorage.getItem('aeSave')||'{}'))}catch(e){}
+if(!sv.lv)try{sv.lv=+localStorage.getItem('aeLevel')||1}catch(e){}
+function save(){try{localStorage.setItem('aeSave',JSON.stringify(sv))}catch(e){}}
+const msg=t=>document.getElementById("msg").textContent=t;
+let AC;function beep(f,d,t,v){if(!sv.snd)return;try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.type=t||"sine";o.frequency.value=f;g.gain.value=v||.07;o.connect(g);g.connect(AC.destination);o.start();g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+d);o.stop(AC.currentTime+d)}catch(e){}}
+function vib(p){if(sv.snd)try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}}
+function win(){let r=daily?0:10+lives*5;if(daily){const d=new Date().toDateString();if(!sv.tro.includes(d)){sv.tro.push(d);r=40}}
+  sv.coins+=r;[523,659,784].forEach((f,k)=>setTimeout(()=>beep(f,.25),k*110));vib([30,40,30]);save();hud();return r}
+lv=sv.lv||1;
+function rng(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function ray(s){const d=s.d,h=s.c[s.c.length-1];let x=h[0]+d[0],y=h[1]+d[1];const r=[];
+  while(x>=0&&y>=0&&x<n&&y<n){r.push(y*n+x);x+=d[0];y+=d[1]}return r}
+function gen(size,seed,dens){
+  n=size;const R=rng(seed),o=Array(n*n).fill(-1),S=[];let filled=0;
+  for(let a=0;a<6000&&filled<dens*n*n;a++){
+    const sx=R()*n|0,sy=R()*n|0;if(o[sy*n+sx]>=0)continue;
+    const L=2+(R()*(n>7?7:5)|0),c=[[sx,sy]];let pd=-1;
+    while(c.length<L){const [x,y]=c[c.length-1],opts=[];
+      for(let k=0;k<4;k++){const nx=x+D[k][0],ny=y+D[k][1];
+        if(nx<0||ny<0||nx>=n||ny>=n||o[ny*n+nx]>=0||c.some(p=>p[0]==nx&&p[1]==ny))continue;
+        opts.push(k);if(k===pd&&R()<.6)opts.push(k,k)}
+      if(!opts.length)break;const k=opts[R()*opts.length|0];pd=k;c.push([x+D[k][0],y+D[k][1]])}
+    if(c.length<2)continue;
+    const a1=c[c.length-2],h=c[c.length-1],s={c,d:[h[0]-a1[0],h[1]-a1[1]],gone:false};
+    if(ray(s).some(i=>o[i]>=0||c.some(p=>p[1]*n+p[0]===i)))continue;
+    c.forEach(p=>o[p[1]*n+p[0]]=S.length);S.push(s);filled+=c.length}
+  sn=S;occ=o}
+function free(s){return ray(s).every(i=>occ[i]<0)}
+function start(seed,size,dens){
+  gen(size,seed,dens);U=400/n;lives=3;hints=3;undos=3;hist=[];busy=false;
+  document.getElementById("msg").textContent="Tap an arrow whose way out is clear.";draw()}
+function lvl(){daily=false;const size=Math.min(5+Math.floor(lv/3),11);start(lv*7919,size,Math.min(.5+lv*.015,.72));
+  document.getElementById("ttl").textContent="Level "+lv}
+function dly(){daily=true;const d=new Date(),sd=d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();
+  start(sd,9,.7);document.getElementById("ttl").textContent="Daily"}
+function draw(){
+  const b=document.getElementById("bd");let h="";
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++)h+=`<circle cx="${(x+.5)*U}" cy="${(y+.5)*U}" r="2" fill="var(--dot)"/>`;
+  sn.forEach((s,i)=>{if(s.gone)return;const pts=s.c.map(p=>((p[0]+.5)*U)+","+((p[1]+.5)*U)).join(" "),hd=s.c[s.c.length-1],cx=(hd[0]+.5)*U,cy=(hd[1]+.5)*U,
+    dx=s.d[0],dy=s.d[1],px=-dy,py=dx,k=U;
+    const tri=[[cx+dx*.42*k,cy+dy*.42*k],[cx-dx*.05*k+px*.3*k,cy-dy*.05*k+py*.3*k],[cx-dx*.05*k-px*.3*k,cy-dy*.05*k-py*.3*k]].map(p=>p.join(",")).join(" ");
+    h+=`<g class="s" id="s${i}"><polyline class="b" points="${pts}" style="stroke-width:${Math.max(3,U*.14)}"/><polygon class="h" points="${tri}"/><polyline class="t" points="${pts}" data-i="${i}" style="stroke-width:${Math.max(24,U*.8)}"/></g>`});
+  b.innerHTML=h;b.querySelectorAll(".t").forEach(t=>t.addEventListener("pointerdown",e=>{e.preventDefault();tap(+t.dataset.i)}));
+  hud()}
+function hud(){document.getElementById("hearts").textContent="♥".repeat(lives)+"♡".repeat(3-lives);
+  document.getElementById("left").textContent=sn.filter(s=>!s.gone).length;document.getElementById("hn").textContent=hints>0?"Hint ("+hints+")":"Hint (20🪙)";
+  document.getElementById("co").textContent=sv.coins;document.getElementById("tr").textContent=sv.tro.length;
+  document.getElementById("un").textContent="Undo ("+undos+")";document.getElementById("sd").textContent=sv.snd?"🔊":"🔇"}
+function tap(i){const s=sn[i];if(busy||s.gone)return;const g=document.getElementById("s"+i);
+  if(free(s)){s.gone=true;s.c.forEach(p=>occ[p[1]*n+p[0]]=-1);hist.push(i);beep(520+Math.min(hist.length,14)*28,.12);vib(15);
+    g.style.transform=`translate(${s.d[0]*420}px,${s.d[1]*420}px)`;g.style.opacity=0;g.style.pointerEvents="none";hud();
+    if(sn.every(x=>x.gone)){busy=true;msg((daily?"Daily cleared!":"Level "+lv+" cleared!")+" +"+win()+" coins");
+      setTimeout(()=>{if(daily){dly()}else{lv++;sv.lv=lv;save();lvl()}},1100)}}
+  else{lives--;beep(150,.25,"sawtooth",.1);vib(80);g.classList.remove("bad");void g.getBoundingClientRect();g.classList.add("bad");hud();
+    if(lives<=0){busy=true;document.getElementById("msg").textContent="Out of lives. Try again.";setTimeout(()=>daily?dly():lvl(),1200)}
+    else document.getElementById("msg").textContent="Blocked. Clear the way first."}}
+document.getElementById("hn").onclick=()=>{if(busy)return;if(hints<1){if(sv.coins<20){msg("Need 20 coins for a hint.");return}sv.coins-=20;hints=1;save()}const i=sn.findIndex(s=>!s.gone&&free(s));if(i<0)return;hints--;hud();
+  const g=document.getElementById("s"+i);g.classList.add("hint");setTimeout(()=>g.classList.remove("hint"),1600)};
+document.getElementById("rs").onclick=()=>daily?dly():lvl();
+document.getElementById("dl").onclick=dly;
+document.getElementById("un").onclick=()=>{if(busy||undos<1||!hist.length)return;const k=hist.pop(),s=sn[k];s.gone=false;s.c.forEach(p=>occ[p[1]*n+p[0]]=k);undos--;draw();beep(330,.1)};
+const PL=["classic","ocean","sunset","forest","night"];
+function applyPal(){const r=document.documentElement;sv.pal==="classic"?r.removeAttribute("data-pal"):r.setAttribute("data-pal",sv.pal)}
+document.getElementById("th").onclick=()=>{const u=sv.unl,i=u.indexOf(sv.pal);
+  if(i<u.length-1)sv.pal=u[i+1];else{const lk=PL.find(p=>!u.includes(p));if(lk&&sv.coins>=60){sv.coins-=60;u.push(lk);sv.pal=lk;msg("Unlocked "+lk+" theme!")}else{sv.pal=u[0];if(lk)msg("Next theme costs 60 coins.")}}
+  applyPal();save();hud()};
+document.getElementById("sd").onclick=()=>{sv.snd=!sv.snd;save();hud()};
+applyPal();
+lvl();
+</script><script>if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))</script>
+</body></html>
